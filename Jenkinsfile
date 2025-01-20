@@ -48,8 +48,15 @@ pipeline {
                         ssh -o StrictHostKeyChecking=no -i $PRIVATE_KEY_FILE ${USER}@${HOST} "mkdir -p ~/app"
                         scp -o StrictHostKeyChecking=no -i $PRIVATE_KEY_FILE -r ./* ${USER}@${HOST}:~/app/
 
-                        # Start the application
-                        ssh -o StrictHostKeyChecking=no -i $PRIVATE_KEY_FILE ${USER}@${HOST} "cd ~/app && chmod +x run.sh && nohup ./run.sh > app.log 2>&1 &"
+
+                        echo "Starting the application using run.sh..."
+                        ssh -o StrictHostKeyChecking=no -i $PRIVATE_KEY_FILE ${USER}@${HOST} "
+                            cd ~/app &&
+                            chmod +x run.sh &&
+                            nohup ./run.sh > app.log 2>&1 &
+                            sleep 5 && # Wait for the app to start
+                            ps aux | grep gunicorn || echo 'Gunicorn process not found'
+                        "
                     '''
                 }
             }
