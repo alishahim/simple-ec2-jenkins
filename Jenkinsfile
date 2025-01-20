@@ -54,19 +54,6 @@ pipeline {
                 }
             }
         }
-
-        stage('AWS Verification') {
-            steps {
-                echo 'Verifying AWS credentials and listing S3 buckets...'
-                sh '''
-                    export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-                    export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-
-                    # Test AWS CLI with credentials
-                    aws s3 ls
-                '''
-            }
-        }
     }
 
     post {
