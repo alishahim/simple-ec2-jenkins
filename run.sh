@@ -1,11 +1,15 @@
 #!/bin/bash
 set -e  # Exit on error
 
-# Navigate to the app directory
-cd "$(dirname "$0")"
+echo "Checking if pip is installed..."
+if ! command -v pip3 &> /dev/null; then
+    echo "pip not found. Installing pip..."
+    sudo apt update
+    sudo apt install python3-pip -y || sudo yum install python3-pip -y
+fi
 
-# Install dependencies (optional, for debugging purposes)
-pip install --user -r requirements.txt
+echo "Installing Python dependencies..."
+pip3 install --user -r requirements.txt
 
-# Start Gunicorn
+echo "Starting the application..."
 gunicorn -b 0.0.0.0:5000 app:app
