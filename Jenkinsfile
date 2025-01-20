@@ -44,15 +44,6 @@ pipeline {
                         # Ensure required packages are installed
                         ssh -o StrictHostKeyChecking=no -i $PRIVATE_KEY_FILE ${USER}@${HOST} "sudo apt-get update && sudo apt-get install -y procps"
 
-                        // # Stop any running application
-                        // ssh -o StrictHostKeyChecking=no -i $PRIVATE_KEY_FILE ${USER}@${HOST} "
-                        // if pgrep -f 'gunicorn -b 0.0.0.0:5000' > /dev/null; then
-                        //     echo 'Stopping running Gunicorn processes...';
-                        //     pgrep -f 'gunicorn -b 0.0.0.0:5000' | xargs sudo kill -9;
-                        // else
-                        //     echo 'No Gunicorn process found.';
-                        // fi"
-
                         # Deploy the application
                         ssh -o StrictHostKeyChecking=no -i $PRIVATE_KEY_FILE ${USER}@${HOST} "mkdir -p ~/app"
                         scp -o StrictHostKeyChecking=no -i $PRIVATE_KEY_FILE -r ./* ${USER}@${HOST}:~/app/
