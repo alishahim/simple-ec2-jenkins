@@ -2,11 +2,10 @@ pipeline {
     agent any
 
     environment {
-        AWS_ACCESS_KEY_ID = credentials('aws-access-key-id') // Jenkins credential ID for AWS Access Key
-        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key') // Jenkins credential ID for AWS Secret Key
-        PRIVATE_KEY = credentials('ec2-private-key') // Jenkins credential ID for the private key
         HOST = credentials('ec2-host')             // Jenkins credential ID for EC2 host
         USER = credentials('ec2-user')             // Jenkins credential ID for EC2 user
+        AWS_ACCESS_KEY_ID = credentials('aws-access-key-id') // AWS Access Key
+        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key') // AWS Secret Key
     }
 
     stages {
@@ -17,22 +16,13 @@ pipeline {
             }
         }
 
-        stage('Set Up Python Environment') {
-            steps {
-                echo 'Setting up Python environment...'
-                sh '''
-                    python3 -m pip install --upgrade pip
-                    pip cache purge
-                    pip install -r requirements.txt
-                    pip install pytest
-                '''
-            }
-        }
-
         stage('Run Tests') {
             steps {
-                echo 'Running tests...'
+                echo 'Setting up Python environment and running tests...'
                 sh '''
+                    python3 -m pip install --upgrade pip
+                    pip install -r requirements.txt
+                    pip install pytest
                     pytest
                 '''
             }
@@ -42,48 +32,48 @@ pipeline {
             steps {
                 echo "Deploying application to EC2 instance: ${env.HOST} as ${env.USER}"
 
-                script {
-                    // Write private key to a file
-                    writeFile file: 'private_key.pem', text: env.PRIVATE_KEY
-                    sh 'chmod 600 private_key.pem'
-
-                    // Test SSH connectivity
+                withCredentials([
+                    file(credentialsId: 'ec2-private-key', variable: 'PRIVATE_KEY_FILE')
+                ]) {
                     sh '''
-                        ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} "echo 'Connected to EC2 instance!'"
-                    '''
+                        echo "Testing SSH connectivity to ${USER}@${HOST}..."
 
-                    // Ensure required packages are installed
-                    sh '''
-                        ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} "sudo apt-get update && sudo apt-get install -y procps"
-                    '''
+                        # Test SSH connectivity
+                        ssh -o StrictHostKeyChecking=no -i $PRIVATE_KEY_FILE ${USER}@${HOST} "echo 'Connected to EC2 instance!'"
 
-                    // Stop any running Gunicorn process
-                    sh '''
-                        ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} "
+                        # Ensure required packages are installed
+                        ssh -o StrictHostKeyChecking=no -i $PRIVATE_KEY_FILE ${USER}@${HOST} "sudo apt-get update && sudo apt-get install -y procps"
+
+                        # Stop any running application
+                        ssh -o StrictHostKeyChecking=no -i $PRIVATE_KEY_FILE ${USER}@${HOST} "
                         if pgrep -f 'gunicorn -b 0.0.0.0:5000' > /dev/null; then
-                            echo 'Stopping Gunicorn processes...';
-                            pgrep -f 'gunicorn -b 0.0.0.0:5000' | grep -v $$ | xargs sudo kill -9;
+                            echo 'Stopping running Gunicorn processes...';
+                            pgrep -f 'gunicorn -b 0.0.0.0:5000' | xargs sudo kill -9;
                         else
-                            echo 'No Gunicorn process running.';
+                            echo 'No Gunicorn process found.';
                         fi"
-                    '''
 
-                    // Deploy application code
-                    sh '''
-                        ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} "mkdir -p ~/app"
-                        scp -o StrictHostKeyChecking=no -i private_key.pem -r ./* ${USER}@${HOST}:~/app/
-                    '''
+                        # Deploy the application
+                        ssh -o StrictHostKeyChecking=no -i $PRIVATE_KEY_FILE ${USER}@${HOST} "mkdir -p ~/app"
+                        scp -o StrictHostKeyChecking=no -i $PRIVATE_KEY_FILE -r ./* ${USER}@${HOST}:~/app/
 
-                    // Start the application
-                    sh '''
-                        ssh -o StrictHostKeyChecking=no -i private_key.pem ${USER}@${HOST} "cd ~/app && chmod +x run.sh && nohup ./run.sh > app.log 2>&1 &"
+                        # Start the application
+                        ssh -o StrictHostKeyChecking=no -i $PRIVATE_KEY_FILE ${USER}@${HOST} "cd ~/app && chmod +x run.sh && nohup ./run.sh > app.log 2>&1 &"
                     '''
-
-                    // Clean up private key
-                    sh 'rm -f private_key.pem'
                 }
+            }
+        }
 
-                echo 'Deployment to EC2 complete!'
+        stage('AWS Verification') {
+            steps {
+                echo 'Verifying AWS credentials and listing S3 buckets...'
+                sh '''
+                    export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+                    export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+
+                    # Test AWS CLI with credentials
+                    aws s3 ls
+                '''
             }
         }
     }
