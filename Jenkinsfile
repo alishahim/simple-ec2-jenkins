@@ -33,6 +33,8 @@ pipeline {
             }
         }
 
+
+
         stage('Deploy to EC2') {
             steps {
                 echo "Deploying application to EC2 instance: ${env.HOST} as ${env.USER}"
