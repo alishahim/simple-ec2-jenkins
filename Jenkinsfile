@@ -18,15 +18,25 @@ pipeline {
 
         stage('Run Tests') {
             steps {
-                echo 'Setting up Python environment and running tests...'
+                echo 'Setting up Python virtual environment and running tests...'
                 sh '''
-                    python3 -m pip install --upgrade pip
-                    python3 -m pip install -r requirements.txt
-                    python3 -m pip install pytest
+                    # Ensure the virtual environment exists
+                    python3 -m venv venv
+                    
+                    # Activate the virtual environment
+                    source venv/bin/activate
+                    
+                    # Upgrade pip and install dependencies
+                    pip install --upgrade pip
+                    pip install -r requirements.txt
+                    pip install pytest
+                    
+                    # Run tests
                     pytest
                 '''
-            }
-        }
+    }
+}
+
 
         stage('Deploy to EC2') {
             steps {
